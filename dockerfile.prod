@@ -1,0 +1,47 @@
+
+# 1 Dependencias
+FROM node:21-alpine3.19 AS deps
+
+WORKDIR /usr/src/app
+
+COPY package.json ./
+COPY package-lock.json ./
+
+RUN npm install
+
+
+
+# 2 Builder - Construye la aplicacion
+FROM node:21-alpine3.19 AS build
+
+WORKDIR /usr/src/app
+
+# Copiar deps, los modulos de node
+COPY --from=deps /usr/src/app/node_modules ./node_modules
+
+# Copiar todoe el codigo fuente de la aplicacion
+COPY . .
+
+RUN npm run build
+
+RUN npm ci -f --only=production && npm cache clean --force
+
+
+
+# 3 Crear la imagen final de docker
+FROM node:21-alpine3.19 AS prod
+
+WORKDIR /usr/src/app
+
+COPY --from=build /usr/src/app/node_modules ./node_modules
+
+# Copiar la carpeta de dist
+COPY --from=build /usr/src/app/dist ./dist
+
+ENV NODE_ENV=production
+
+USER node
+
+EXPOSE 3000
+
+CMD [ "node", "dist/main.js" ]
